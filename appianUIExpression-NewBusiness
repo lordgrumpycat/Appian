@@ -1,0 +1,167 @@
+a!localVariables(
+  local!signatureCard,
+  local!finscan,
+  local!requirementsText,
+  local!requirements,
+  local!choiceLabels: { "Yes", "No" },
+  local!choiceValues: { true, false },
+  local!widths: { "4X", "2X" },
+  a!formLayout(
+    label: ri!formLabel,
+    instructions: "Perform the following actions to vet the New Business Application",
+    contents: {
+      rule!policyDashboardLayout(policyNumber: ri!policyNumber),
+      a!sectionLayout(
+        label: "Vetting Questions",
+        contents: {
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!radioButtonCard(
+                    label: "Signature Card",
+                    choiceLabels: local!choiceLabels,
+                    choiceValues: local!choiceValues,
+                    value: local!signatureCard,
+                    saveInto: {
+                      local!signatureCard,
+                      a!save(
+                        target: local!requirementsText,
+                        value: rule!NB_vettingRequirements(
+                          question: "Signature Card",
+                          validation: local!signatureCard
+                        )
+                      ),
+                      a!save(
+                        target: local!requirements,
+                        value: a!forEach(
+                          items: a!flatten(local!requirementsText),
+                          expression: if(
+                            rule!APN_isBlank(fv!item),
+                            {},
+                            'type!{urn:com:appian:types:MET}APN_PROCESS_REQUIREMENTS'(
+                              apr_process_id: ri!masterProcessId,
+                              apr_requirement: fv!item,
+                              apr_created_by: "Administrator",
+                              apr_created_at: now()
+                            )
+                          )
+                        )
+                      ),
+                      if(
+                        rule!APN_isEmpty(local!requirements),
+                        {},
+                        a!writeToDataStoreEntity(
+                          dataStoreEntity: cons!APN_PROCESS_REQUIREMENTS,
+                          valueToStore: local!requirements
+                        )
+                      )
+                    },
+                    instructions: "Is the signature card valid?",
+                    required: true,
+                    validationGroup: "Form"
+                    
+                  ),
+                  rule!radioButtonCard(
+                    label: "Finscan",
+                    choiceLabels: local!choiceLabels,
+                    choiceValues: local!choiceValues,
+                    value: local!finscan,
+                    saveInto: {
+                      local!finscan,
+                      a!save(
+                        target: local!requirementsText,
+                        value: rule!NB_vettingRequirements(
+                          question: "FinScan",
+                          validation: local!finscan
+                        )
+                      ),
+                      a!save(
+                        target: local!requirements,
+                        value: a!forEach(
+                          items: a!flatten(local!requirementsText),
+                          expression: if(
+                            rule!APN_isBlank(fv!item),
+                            {},
+                            'type!{urn:com:appian:types:MET}APN_PROCESS_REQUIREMENTS'(
+                              apr_process_id: ri!masterProcessId,
+                              apr_requirement: fv!item,
+                              apr_created_by: "Administrator",
+                              apr_created_at: now()
+                            )
+                          )
+                        )
+                      ),
+                      if(
+                        rule!APN_isEmpty(local!requirements),
+                        {},
+                        a!writeToDataStoreEntity(
+                          dataStoreEntity: cons!APN_PROCESS_REQUIREMENTS,
+                          valueToStore: local!requirements
+                        )
+                      )
+                    },
+                    instructions: "Is there a match or matches on any party relating to this contract?",
+                    required: now() - 3 < ri!processStartTime,
+                    showWhen: now() - 3 < ri!processStartTime,
+                    choiceLayout: "COMPACT",
+                    widths: local!widths,
+                    validationGroup: "Form"
+                    
+                  )
+                }
+              ),
+              a!columnLayout(contents: {
+  rule!radioButtonCard(
+    label: "Have the premium contribution details been submitted?",
+    choicelabels: {"Yes", "No"},
+    choicevalues: {true(), false()},
+    value: a!defaultValue(value: ri!contributionDetailsReceived, default: null),
+    saveinto: {ri!contributionDetailsReceived,
+    a!save(
+      target: local!requirementsText,
+      value: if(ri!contributionDetailsReceived = false(), "Premium Contribution Details", null())
+    )},
+    required: true,
+    disabled: false,
+    validationgroup: "Form"
+  )
+})
+              
+            }
+          )
+        },
+        iscollapsible: true,
+        divider: "BELOW",
+        marginBelow: "EVEN_LESS"
+      ),
+      rule!MET_currentActivitySection(
+        entityType: "CON",
+        entityId: ri!policyNumber,
+        excludeProcessId: ri!masterProcessId
+      ),
+      rule!MET_outstandingRequirementsSection(
+        processId: ri!masterProcessId,
+        initiallyCollapsed: false
+      ),
+      rule!MET_processNotesSection(processId: ri!masterProcessId)
+    },
+    buttons: a!buttonLayout(
+      primaryButtons: {
+        a!buttonWidget_23r3(
+          label: "Continue",
+          style: "PRIMARY",
+          value: "Continue",
+          saveInto: {ri!buttonValue,
+          a!save(
+            target: ri!vettingRequirements,
+            value: local!requirementsText
+          )},
+          submit: true,
+          validationGroup: "Form"
+        )
+      },
+      secondaryButtons: {}
+    )
+  )
+)
