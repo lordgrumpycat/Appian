@@ -1,0 +1,442 @@
+a!localVariables(
+  local!chaseMethod,
+  local!telephone,
+  local!showDocument: false,
+  local!chaserDate,
+  local!validDocument,
+  local!closeOrRequest,
+  local!approvalReason,
+  local!rejectReason,
+  local!removeRequirements,
+  local!complianceReferral: if(or(ri!isPep), true, null),
+  local!remainingRequirements,
+  local!existingRequirements,
+  local!removed,
+  local!rejectForm : if(local!closeOrRequest = "Reject", true, false),
+  local!outstandingRequirements : if(or(local!existingRequirements = "No", local!rejectForm = "False", local!closeOrRequest = "Request"), true, false),
+  a!formLayout(
+    label: ri!taskDisplay,
+    instructions: "Outstanding requirements are due to be chased or have been received linked to this process. Please chase or review requirements and determine if they are acceptable and can be removed or further requirements should be requested. ",
+    contents: {
+      a!sectionLayout(
+        contents: {
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!clientDashboardLayout(clientId: ri!clientId),
+                  rule!policyDashboardLayout(policynumber: ri!policyId)
+                }
+              )
+            }
+          ),
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!MET_currentActivitySection(
+                    entityType: ri!eventData.EntityType,
+                    entityId: ri!eventData.entityId
+
+                  ),
+                  rule!MET_allOpenRequirementsSection(
+                    readOnly: true, /*'Remove Requirements' Button is hidden if readOnly is set to true*/
+                    entityType: ri!eventData.EntityType,
+                    entityId: ri!eventData.EntityId
+
+                  )
+
+                }
+              ),
+              a!columnLayout(
+                contents: {
+                  a!sectionLayout(
+                    label: "Document Links",
+                    contents: {
+                      a!richTextDisplayField(
+                        label: "",
+                        labelPosition: "COLLAPSED",
+                        value: {
+                          a!richTextImage(
+                            image: a!documentImage(
+                              document: a!iconIndicator(icon: "DOC_GENERIC")
+                            ),
+                            showWhen: not(local!showDocument)
+                          ),
+                          a!richTextItem(
+                            text: ri!documentName,
+                            link: a!dynamicLink(
+                              value: true(),
+                              saveInto: local!showdocument
+                            ),
+                            showWhen: not(local!showDocument),
+                            style: {}
+                          )
+                        }
+                      ),
+                      a!richTextDisplayField(
+                        labelPosition: "COLLAPSED",
+                        value: {
+                          a!richTextItem(
+                            text: { a!richTextIcon(icon: "close") },
+                            link: a!dynamicLink(
+                              value: false(),
+                              saveInto: local!showDocument
+                            ),
+                            linkStyle: "STANDALONE"
+                          )
+                        },
+                        showWhen: local!showDocument,
+                        align: "RIGHT"
+                      ),
+                      a!documentViewerField(
+                        label: ri!documentName,
+                        document: ri!appianDocumentId,
+                        height: "MEDIUM",
+                        showWhen: local!showDocument
+                      )
+                    }
+                  )
+                }
+              )
+            }
+          )
+        }
+      ),
+      a!sectionLayout(
+        label: "Action",
+        contents: {
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!radioButtonCard(
+                    label: "Have All The Requirements Been Received?",
+                    choicelabels: {"Yes", "No"},
+                    choicevalues: {"Yes", "No"},
+                    value: local!existingRequirements,
+                    saveinto: local!existingRequirements,
+                    instructions: "The chaser date for this process has elapsed, have all the requested Outstanding requirements been received?",
+                    required: true
+                  ),
+                  rule!checkBoxCard(
+                    label: "Requirements All Removed",
+                    showwhen: local!existingRequirements = "Yes",
+                    required: true,
+                    value: local!removed,
+                    choicelabel: "Done",
+                    saveinto: local!removed,
+                  )
+                }
+              ),
+              a!columnLayout(
+                contents: {}
+              )
+            }
+          )
+
+        }
+      ),
+      a!sectionLayout(
+        label: "Chase Actions",
+        contents: {
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!radioButtonCard(
+                    label: "Are document(s) received valid and satisfy the original requirement? ",
+                    choicelabels: { "Valid Documents", "Does Not Satisfy" },
+                    choicevalues: { "Approved", "Rejected" },
+                    value: local!validDocument,
+                    saveinto: local!validDocument,
+                    required: true
+                  ),
+                  rule!radioButtonCard(
+                    label: "Request More Requirements, or Reject Instruction?",
+                    choicelabels: { "Request New Requirements", "Reject Instruction" },
+                    choicevalues: { "Request", "Reject" },
+                    value: local!closeOrRequest,
+                    saveinto: local!closeOrRequest,
+                    required: true,
+                    disabled: a!isNullOrEmpty(local!validDocument),
+                    showWhen: local!validDocument = "Rejected"
+                  ),
+                  a!textField(
+                    label: "Notes To Support Rejection",
+                    value: ri!rejectionReason,
+                    saveInto: ri!rejectionReason,
+                    refreshAfter: "UNFOCUS",
+                    characterLimit: 2000,
+                    showwhen: local!closeOrRequest = "Reject",
+                    required: true
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add additional notes relevant to the Telephone Call",
+                    showwhen: local!remainingRequirements = "Telephone",
+                    required: true,
+                    value: local!telephone,
+                    choicelabel: "Done",
+                    saveinto: local!telephone
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add Notes to confirm reason for Rejection of document(s)",
+                    showwhen: local!closeOrRequest = "Reject",
+                    required: true,
+                    value: local!rejectReason,
+                    choicelabel: "Done",
+                    saveInto: local!rejectReason
+                  ),
+                  rule!radioButtonCard(
+                    label: "Chase Outstanding Requirements",
+                    choicelabels: { "Telephone Call", "Email" },
+                    choicevalues: { "Telephone Call", "Email" },
+                    value: local!chaseMethod,
+                    saveinto: local!chaseMethod,
+                    required: true,
+                    showWhen: and(ri!chaserType = "Chase", local!closeOrRequest = "Request"),
+                    choicelayout: "COMPACT"
+                  ),
+                  a!textField(
+                    label: "Telephone Call Notes",
+                    labelPosition: "ABOVE",
+                    value: ri!requirementsDecisionNotes,
+                    saveInto: ri!requirementsDecisionNotes,
+                    refreshAfter: "UNFOCUS",
+                    characterLimit: 2000,
+                    showWhen: and(
+                      local!chaseMethod = "Telephone Call",
+                      ri!chaserType = "Chase"
+                    ),
+                    required: true
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add additional notes relevant to the Telephone Call",
+                    showwhen: and(
+                      local!chaseMethod = "Telephone Call",
+                      ri!chaserType = "Chase"
+                    ),
+                    required: true,
+                    value: local!telephone,
+                    choicelabel: "Done",
+                    saveinto: local!telephone
+                  ),
+                  a!fileUploadField(
+                    label: "Upload Copy of confirmation here",
+                    labelPosition: "ABOVE",
+                    target: cons!Generic_Model_Temp_Docs,
+                    value: { ri!chaserEmail },
+                    saveInto: { ri!chaserEmail },
+                    showWhen: local!chaseMethod = "Email",
+                    required: true
+                  ),
+                  rule!genericInputDateLayout(
+                    label: "Chaser Date",
+                    saveinto: ri!chaserDate,
+                    dayslimit: 30,
+                    showWhen: and(ri!chaserType = "Chase", local!closeOrRequest = "Request")
+                  )
+                }
+              ),
+              a!columnLayout(
+                contents: {}
+              )
+            }
+          )
+        },
+        showWhen: and(ri!chaserType = "Chase", local!existingRequirements = "No")
+      ),
+      a!sectionLayout(
+        label: "Review Requirements",
+        contents: {
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!radioButtonCard(
+                    label: "Are document(s) received valid and satisfy the original requirement? ",
+                    choicelabels: { "Valid Documents", "Does Not Satisfy" },
+                    choicevalues: { "Approved", "Rejected" },
+                    value: local!validDocument,
+                    saveinto: local!validDocument,
+                    required: true
+                  ),
+                  rule!radioButtonCard(
+                    label: "Request More Requirements, or Reject Instruction?",
+                    choicelabels: { "Request New Requirements", "Reject Instruction" },
+                    choicevalues: { "Request", "Reject" },
+                    value: local!closeOrRequest,
+                    saveinto: local!closeOrRequest,
+                    required: true,
+                    disabled: a!isNullOrEmpty(local!validDocument),
+                    showWhen: local!validDocument = "Rejected"
+                  ),
+                  a!textField(
+                    label: "Notes To Support Rejection",
+                    value: ri!requirementsDecisionNotes,
+                    saveInto: ri!requirementsDecisionNotes,
+                    refreshAfter: "UNFOCUS",
+                    characterLimit: 2000,
+                    showwhen: local!closeOrRequest = "Reject",
+                    required: true
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add additional notes relevant to the Telephone Call",
+                    showwhen: local!remainingRequirements = "Telephone",
+                    required: true,
+                    value: local!telephone,
+                    choicelabel: "Done",
+                    saveinto: local!telephone
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add Notes to confirm reason for Rejection of document(s)",
+                    showwhen: local!closeOrRequest = "Reject",
+                    required: true,
+                    value: local!rejectReason,
+                    choicelabel: "Done",
+                    saveInto: local!rejectReason
+                  ),
+                  rule!radioButtonCard(
+                    label: "Does this need to be referred to Compliance to further approve?",
+                    choicelabels: { "Yes", "No" },
+                    choicevalues: { true, false },
+                    value: local!complianceReferral,
+                    saveinto: local!complianceReferral,
+                    required: true,
+                    disabled: ri!isPep,
+                    showwhen: local!validDocument = "Approved",
+                    choicelayout: "COMPACT"
+                  ),
+                  a!textField(
+                    label: "Notes To Support Approval",
+                    value: ri!requirementsDecisionNotes,
+                    saveInto: ri!requirementsDecisionNotes,
+                    refreshAfter: "UNFOCUS",
+                    characterLimit: 2000,
+                    showwhen: local!validDocument = "Approved",
+                    required: true
+                  ),
+                  rule!checkBoxCard(
+                    label: "Add Notes to support reason for Approval",
+                    showwhen: local!validDocument = "Approved",
+                    required: true,
+                    value: local!approvalReason,
+                    choicelabel: "Done",
+                    saveinto: local!approvalReason
+                  )
+                }
+              ),
+              a!columnLayout(
+                contents: {}
+              )
+            }
+          )
+        },
+        showWhen: and(ri!chaserType = "Upload", local!existingRequirements = "No" )
+      ),
+      a!sectionLayout(
+        contents: {
+          rule!MET_processNotesSection(
+            processid: ri!processId,
+            initiallycollapsed: false,
+            readonly: null
+          )
+        },
+        marginBelow: "STANDARD"
+      ),
+      a!sectionLayout(
+        contents: {
+          rule!MET_outstandingRequirementsSection(processid: ri!processId, readonly: false),
+          a!columnsLayout(
+            columns: {
+              a!columnLayout(
+                contents: {
+                  rule!checkBoxCard(
+                    label: "Remove Outstanding Requirements From List",
+                    showwhen: local!validDocument = "Approved",
+                    required: true,
+                    value: local!removeRequirements,
+                    choicelabel: "Done",
+                    saveinto: local!removeRequirements
+                  )
+                }
+              ),
+              a!columnLayout(
+                contents: {}
+              )
+            }
+          )
+        },
+        marginBelow: "STANDARD"
+      ),
+      a!sectionLayout(
+        label: "",
+        contents: {}
+      )
+    },
+    buttons: a!buttonLayout(
+      primaryButtons: {
+        a!buttonWidget_23r3(
+          label: "Request Requirements",
+          style: "PRIMARY",
+          submit: true,
+          value: "Outstanding Requirements",
+          saveInto: ri!buttonValue,
+          showWhen: and(local!outstandingRequirements, local!rejectForm = "false"),
+          loadingIndicator: true
+        ),
+        a!buttonWidget_23r3(
+          label: "Refer to Compliance",
+          style: "PRIMARY",
+          submit: true,
+          value: "Compliance Referral",
+          saveInto: {ri!buttonValue, ri!complianceReferral},
+          showWhen: and(local!complianceReferral = "true", local!rejectForm = "false"),
+          loadingIndicator: true
+        ),
+        a!buttonWidget_23r3(
+          label: "Continue",
+          style: "PRIMARY",
+          disabled: Or(a!isNullOrEmpty(local!removeRequirements), local!complianceReferral = "True"),
+          submit: true,
+          value: "Continue",
+          saveInto: ri!buttonValue,
+          showWhen: and(local!outstandingRequirements = "false", local!rejectForm = "false", local!existingRequirements = "Yes"),
+          loadingIndicator: true
+        ),
+        a!buttonWidget_23r3(
+          label: "Set New Chaser",
+          style: "PRIMARY",
+          disabled: or(a!isNullOrEmpty(ri!chaserDate), if(ri!chaserDate = today(), true, false)),
+          submit: true,
+          value: "New Chaser",
+          saveInto: ri!buttonValue,
+          showWhen: and(ri!chaserType = "Chase", local!existingRequirements = "No", local!rejectForm = "false"),
+          loadingIndicator: true
+        ),
+        a!buttonWidget_23r3(
+          label: "All Received",
+          style: "PRIMARY",
+          submit: true,
+          value: "All Done",
+          saveInto: ri!buttonValue,
+          disabled: a!isNullOrEmpty(local!removed),
+          showWhen: local!existingRequirements = "Yes",
+          loadingIndicator: true
+        )
+      },
+      secondaryButtons: {
+        a!buttonWidget_23r3(
+          label: "Reject",
+          style: "DESTRUCTIVE",
+          submit: true,
+          validate: false,
+          value: "Reject",
+          disabled: a!isNullOrEmpty(local!rejectReason),
+          saveInto: {ri!buttonValue, ri!rejectForm},
+          showWhen: local!rejectForm
+        )
+      }
+    )
+  )
+)

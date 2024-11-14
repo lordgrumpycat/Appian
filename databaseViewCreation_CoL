@@ -1,0 +1,95 @@
+CREATE OR REPLACE NOFORCE VIEW APN_COL_CLIENTS_VW AS
+--client_list gathers all of the required user data for the Certificate of Life application 
+WITH client_list AS
+  (SELECT psn_number                                                        col_psn_number
+          ,psn_forename_1 ||' '||psn_surname                                col_fullname
+          ,LISTAGG(pol_number||pol_check_digit, '; ') WITHIN GROUP (
+            ORDER BY pol_number,pol_check_digit)      AS                    col_pol_number_list
+          ,psn_date_of_birth                                                col_date_of_birth
+          ,psn_lan_code                                                     col_lan_code
+          ,FLOOR((MONTHS_BETWEEN(TRUNC(SYSDATE), psn_date_of_birth ))/12 )  col_current_age
+          ,nat_desc                                                         col_nationality
+          ,ter_territory                                                    col_residency
+                ,(SELECT 'Y'
+            FROM MIS_MIGRATED_CLIENTS_MV
+            WHERE mcl_number = psn_number
+            AND mcl_code = 'PSN')                                           col_client_site
+  FROM persons
+  JOIN roles
+  ON ( rol_number = psn_number )
+  JOIN policies
+  ON ( rol_pol_no = pol_number)
+  JOIN territories
+  ON ( psn_ter_id_residence = ter_id )
+  JOIN policy_versions
+  ON ( pol_plv_no = plv_number )
+  JOIN policy_types
+  ON ( plv_plt_code   = plt_code )
+  JOIN nationalities
+  ON ( nat_code = psn_nat_code )
+    WHERE rol_end_date IS NULL
+    AND rol_rot_code = 'ASSURED'
+    AND pol_current_status IN ('EXT', 'IFO', 'RST', 'PUP', 'IGT')
+    AND (((MONTHS_BETWEEN(TRUNC(SYSDATE), psn_date_of_birth))/12 >= 85) OR ter_territory = 'France' OR plt_code IN ('HRAA','HRAB','HRAD','HRY','HRZ','HSV','HRAO','HSBG'))
+    GROUP BY psn_number
+            ,psn_forename_1
+            ,psn_surname
+            ,psn_date_of_birth
+            ,psn_lan_code
+            ,nat_desc
+            ,ter_territory
+    ),
+--rpt_list is used to find the date of the last Recieved Premium Transaction from each client within client_list
+rpt_list AS
+  (SELECT col_psn_number                            col_rpt_psn_number
+          ,MAX(trn_date)                            col_last_rpt
+  FROM client_list
+  JOIN roles
+  ON ( rol_number = col_psn_number )
+  JOIN policies
+  ON ( rol_pol_no   = pol_number )
+  JOIN transactions
+  ON ( trn_pol_number = pol_number )
+  WHERE rol_no_type = 'PSN'
+  AND trn_trt_code = 'RPT'
+  AND trn_status = 'D'
+  GROUP BY col_psn_number
+  )
+--Pull the rpt_list into the client_list
+SELECT  col_psn_number
+        ,col_fullname
+        ,col_pol_number_list
+        ,col_date_of_birth
+        ,col_lan_code
+        ,col_current_age
+        ,col_nationality
+        ,col_residency
+        ,col_last_rpt
+        ,NVL(col_client_site,'N') col_client_site
+FROM client_list
+JOIN rpt_list
+ON ( col_psn_number = col_rpt_psn_number )
+ORDER BY 1;
+EXEC bob_build.show_errors( 'APN_COL_CLIENTS_VW' ) ;
+--Comments
+--Useful for multi-lined description
+SET SQLBLANKLINES ON
+COMMENT ON TABLE APN_COL_CLIENTS_VW IS 'All clients that are a redsident of France, own a French product, or are over the age of 85 for reporting on certificate of life';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_psn_number				  IS 'Client Number';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_fullname 			    IS 'Fullname of the client';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_pol_number_list	  IS 'Clients policy number(s)';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_date_of_birth 	    IS 'The clients date of birth';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_lan_code           IS 'The clients prefered language';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_current_age		    IS 'The clients current age';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_nationality		    IS 'The nationality of the client';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_residency			    IS 'Where the client currently lives'; 
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_last_rpt           IS 'Date of last Recieved Premium Transaction';
+COMMENT ON COLUMN APN_COL_CLIENTS_VW.col_client_site        IS 'Indicator for showing if the client has a Client Site';
+--  Create public synonym
+EXEC bob_build.create_user_public_synonym( 'APN_COL_CLIENTS_VW' ) ;
+CREATE OR REPLACE PUBLIC SYNONYM  APN_COL_CLIENTS_VW FOR APN_COL_CLIENTS_VW;
+GRANT SELECT ON APN_COL_CLIENTS_VW TO apn_user;
+---------------------------------------------------------------------------------------------------
+--
+--
+EXIT 0 ;

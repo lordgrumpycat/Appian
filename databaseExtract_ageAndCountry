@@ -1,0 +1,129 @@
+SELECT  v_client_id                                  client_id
+      , v_client_name                                client_name
+	  , STRING_AGG(v_role_name, ', ') WITHIN GROUP (order by v_role_name, dpol_number, f.[Status Code])      
+	                                                 role_names
+      , STRING_AGG(dpol_number, ', ') WITHIN GROUP  (order by v_role_name, dpol_number, f.[Status Code])
+	                                                 pol_numbers
+	  , STRING_AGG(f.[Status Code], ', ') WITHIN GROUP  (order by v_role_name, dpol_number, f.[Status Code])
+	                                                status_codes
+      , dpol_product_code                            product_code
+      , dpol_legacy_product_code                     legacy_product_code
+      , dpol_residency                               residency
+      , dcli_gender                                  gender
+      , dcli_dob_date                                dob
+	  , DATEDIFF(YEAR, c.dcli_dob_date, GETDATE())   age
+	  , dcli_address                                 address
+      , dcli_postcode                                postcode
+      , dcli_address_unknown_ind                     address_unknown_ind
+      , concat('''', dcli_phone_number, '''')        phone_number
+      , concat('''', dcli_mobile_phone_number, '''') mobile_phone_number
+      , dcli_email_address                           email_address
+      , dcli_address_country_code                    address_country_code
+      , dcli_person_nationality_code                 person_nationality_code
+      , dcli_preferred_communication_language_code   preferred_communication_language_code
+      , dprd_code                                    code
+      , dprd_name                                    name
+	  , STRING_AGG(f.[Date of Latest Premium Received], ', ') WITHIN GROUP  (order by v_role_name, dpol_number, f.[Status Code])
+	                                                 [Date of Latest Premium Received]
+	  , STRING_AGG(DATEDIFF(MONTH, f.[Date of Latest Premium Received], GETDATE()), ', ') WITHIN GROUP  (order by v_role_name, dpol_number, f.[Status Code])
+	                                                 months_since_last_premium
+	  , b.dpol_retained_interest_ind                 retained_interest
+	  , f.[Currency Code]
+	  , f.[Current Contract Reserve]
+	  , f.[Date of Maturity]
+	  , f.[Current Servicing Agent ID]
+	  , f.[Current Servicing Agent]
+	  , CASE 
+	    WHEN ISNULL(g.fcid_dcli_id, 0) = 0
+		THEN NULL
+		ELSE 1
+		END [Client Indicators]
+	  , g.[Compliance Referral]
+	  , g.[Complaint]
+	  , g.[Gone Away]
+	  , g.[Litigation]
+	  , g.[PEP]
+	  , g.[Sanctions]
+	  , g.[Special Care]
+	  , g.[US Person]
+FROM xxxxxxx.fact_policy_roles_fvw a
+JOIN xxxxxxx.dim_policies b ON b.dpol_id = a.v_dpol_id
+JOIN xxxxxxx.dim_clients c ON c.dcli_id = a.v_dcli_id
+JOIN xxxxxxx.dim_products d on d.dprd_code = b.dpol_product_code
+JOIN xxxxxxx.dim_channels e ON e.dcha_id = b.dpol_dcha_id
+JOIN xxxxxxx.aas_contracts_snapshot f ON f.dpol_id = b.dpol_id
+LEFT JOIN xxxxxxx.fact_client_indicators_current_pvw g ON g.fcid_dcli_id = c.dcli_id
+WHERE v_client_type = 'PSN'
+AND v_role_name IN ('Policy Owner', 'Beneficiary', 'Life Assured')
+AND v_role_end_date IS NULL
+AND v_end_dtim_date IS NULL
+AND e.dcha_channel_name = 'HE DAC'
+AND c.dcli_deceased_ind = 0
+AND (  
+         (     f.[Status Code]  IN ('IFO', 'PUP', 'DPN', 'SUR', 'MAT')
+		 AND  DATEDIFF(MONTH, f.[Date of Latest Premium Received], GETDATE()) >= 12
+		 AND ( f.[Current Contract Reserve] <> 0 OR dpol_retained_interest_ind = 1 )
+		 AND ( -- Clients Aged 85 and Over
+		       DATEDIFF(YEAR, c.dcli_dob_date, GETDATE()) >= 85 OR
+			   -- French
+			   b.dpol_product_code IN ('174000', '131000', '131001', '194000', '128000') OR
+			   -- Italy
+			   b.dpol_product_code IN ('171000', '208000', '204000', '147000', '125000',
+			                           '156003', '147001', '147000', '147000', '156002', 
+									   '156000', '156002', '156002', '156001') OR 
+			   -- Belgium
+			   b.dpol_product_code IN ('164000', '207000', '184000', '149000', '178000',
+									   '151000', '151001', '165000', '130000', '185000',
+									   '157000', '179000', '150000') 
+		     )  
+		)
+		OR
+		-- French Maturity
+		(
+		       f.[Status Code] ='MAT'
+		   AND f.[Current Contract Reserve] <> 0
+		   AND DATEDIFF(MONTH, f.[Date of Maturity], GETDATE()) > 12
+		)
+		
+    )
+GROUP BY
+        v_client_id                                  
+      , v_client_name                                
+	  , f.[Status Code]
+      , dpol_product_code                            
+      , dpol_legacy_product_code                     
+      , dpol_residency                               
+      , dcli_gender                                  
+      , dcli_dob_date                                
+	  , DATEDIFF(YEAR, c.dcli_dob_date, GETDATE())   
+	  , dcli_address                                 
+      , dcli_postcode                                
+      , dcli_address_unknown_ind                     
+      , concat('''', dcli_phone_number, '''')        
+      , concat('''', dcli_mobile_phone_number, '''') 
+      , dcli_email_address                           
+      , dcli_address_country_code                    
+      , dcli_person_nationality_code                 
+      , dcli_preferred_communication_language_code   
+      , dprd_code                                    
+      , dprd_name                                    
+	  , b.dpol_retained_interest_ind                 
+	  , f.[Currency Code]
+	  , f.[Current Contract Reserve]
+	  , f.[Date of Maturity]
+	  , f.[Current Servicing Agent ID]
+	  , f.[Current Servicing Agent]
+	  , CASE 
+	    WHEN ISNULL(g.fcid_dcli_id, 0) = 0
+		THEN NULL
+		ELSE 1
+		END 
+	  , g.[Compliance Referral]
+	  , g.[Complaint]
+	  , g.[Gone Away]
+	  , g.[Litigation]
+	  , g.[PEP]
+	  , g.[Sanctions]
+	  , g.[Special Care]
+	  , g.[US Person]
+	;
